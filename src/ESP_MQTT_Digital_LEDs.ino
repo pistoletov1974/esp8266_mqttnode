@@ -91,6 +91,7 @@ byte brightness = 255;
 /******************************** GLOBALS for fade/flash *******************************/
 bool stateOn = false;
 bool frameOn = false;
+bool powerOn =false;
 bool startFade = false;
 bool onbeforeflash = false;
 unsigned long lastLoop = 0;
@@ -357,6 +358,7 @@ bool processJson(char* message) {
   }
 
 // on-off photo frame
+  //TODO: add powerOn and gpio 12 and 13 controls  
   if (doc.containsKey("frame")) {
     if (strcmp(doc["frame"],on_cmd)==0) {
       frameOn = true;
@@ -465,7 +467,7 @@ void sendState() {
   char buffer2[400];
 
   //JsonObject& root = doc.createObject();
-
+  //TODO:  add powerOn state and ccs811 nested data
   doc["state"] = (stateOn) ? on_cmd : off_cmd;
   doc["brightness"] = brightness;
   doc["effect"] = effectString.c_str();

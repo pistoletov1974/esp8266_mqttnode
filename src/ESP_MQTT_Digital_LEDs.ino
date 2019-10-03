@@ -30,8 +30,11 @@
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
-#include <SDS011.h>
+#include <SdsDustSensor.h>
 #include <Adafruit_CCS811.h>
+#include <Syslog.h>
+#include "SdsDustSensor.h"
+
 
 
 
@@ -42,6 +45,11 @@ const char* mqtt_server = "10.8.9.100";
 const char* mqtt_username = "mosquitto";
 const char* mqtt_password = "";
 const int mqtt_port = 1883;
+
+
+/************FOR SYSLOG SETTINGS*******************************************************/
+#define SYSLOG_SERVER "10.8.9.100"
+#define SYSLOG_PORT 514
 
 
 
@@ -178,6 +186,8 @@ uint8_t gHue = 0;
 
 
 WiFiClient espClient;
+WiFiUDP    udpClient;
+Syslog syslog(udpClient, SYSLOG_SERVER, SYSLOG_PORT);
 PubSubClient client(espClient);
 struct CRGB leds[NUM_LEDS];
 Adafruit_BME280 bme280; 
@@ -187,8 +197,10 @@ Adafruit_CCS811 ccs;
 
 /********************************** START SETUP*****************************************/
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   FastLED.addLeds<CHIPSET, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS);
+  pinMode(12,OUTPUT);
+  pinMode(13,OUTPUT);
 
   setupStripedPalette( CRGB::Red, CRGB::Red, CRGB::White, CRGB::White); //for CANDY CANE
   gPal = HeatColors_p; //for FIRE
@@ -207,12 +219,13 @@ void setup() {
 
   ArduinoOTA.onStart([]() {
     Serial.println("Starting");
+    syslog.log(LOG_INFO,"UPDATING FIRMWARE");
   });
   ArduinoOTA.onEnd([]() {
     Serial.println("\nEnd");
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    //Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
   });
   ArduinoOTA.onError([](ota_error_t error) {
     Serial.printf("Error[%u]: ", error);
@@ -224,20 +237,21 @@ void setup() {
   });
   ArduinoOTA.begin();
 
-  Serial.println("Ready");
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.localIP());
+ ("Ready");
+  syslog.log(LOG_INFO,"IP Address: ");
+  syslog.log(LOG_INFO, WiFi.localIP().toString());
+
 
   //Wire.pins(0, 2);
   //Wire.begin(0, 2);
   if (! bme280.begin(0x76)) {
-        Serial.println("Could not find a valid BME280 sensor, check wiring!");
+        syslog.log(LOG_INFO,"Could not find a valid BME280 sensor, check wiring!");
        // while (1);
     }  else  { 
-      Serial.println("bme 280 found");
-          Serial.println("-- Weather Station Scenario --");
-    Serial.println("forced mode, 1x temperature / 1x humidity / 1x pressure oversampling,");
-    Serial.println("filter off");
+      syslog.log(LOG_INFO, "bme 280 found");
+          syslog.log(LOG_INFO,"-- Weather Station Scenario --");
+    syslog.log(LOG_INFO,"forced mode, 1x temperature / 1x humidity / 1x pressure oversampling,");
+   
     bme280.setSampling(Adafruit_BME280::MODE_FORCED,
                     Adafruit_BME280::SAMPLING_X1, // temperature
                     Adafruit_BME280::SAMPLING_X1, // pressure
@@ -246,9 +260,9 @@ void setup() {
     }      
 
      if(!ccs.begin()){
-    Serial.println("Failed to start CCS811 sensor! Please check your wiring.");
+    syslog.log(LOG_ERR,"Failed to start CCS811 sensor! Please check your wiring.");
    
-    }   else Serial.print("CCS811 found");
+    }   else syslog.log(LOG_INFO,"CCS811 found");
  
 
 }
@@ -298,16 +312,16 @@ void setup_wifi() {
 
 /********************************** START CALLBACK*****************************************/
 void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
+  syslog.log(LOG_INFO,"Message arrived [");
+  syslog.log(LOG_INFO,topic);
+  syslog.log(LOG_INFO,"] ");
 
   char message[length + 1];
   for (int i = 0; i < length; i++) {
     message[i] = (char)payload[i];
   }
   message[length] = '\0';
-  Serial.println(message);
+  syslog.log(LOG_INFO,message);
 
   if (!processJson(message)) {
     return;
@@ -326,7 +340,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     realBlue = 0;
   }
 
-  Serial.println(effect);
+  syslog.log(LOG_INFO,effect);
 
   startFade = true;
   inFade = false; // Kill the current fade
@@ -339,11 +353,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
 /********************************** START PROCESS JSON*****************************************/
 bool processJson(char* message) {
   StaticJsonDocument<BUFFER_SIZE> doc;
-  Serial.println("Json process");
+  syslog.log(LOG_INFO,"Json process");
   //JsonObject root = doc.parseObject(message);
   DeserializationError error= deserializeJson(doc,message);
   if (error) {
-    Serial.println(error.c_str());
+    syslog.log(LOG_ERR,error.c_str());
     return false;
   }
 
@@ -362,12 +376,29 @@ bool processJson(char* message) {
   if (doc.containsKey("frame")) {
     if (strcmp(doc["frame"],on_cmd)==0) {
       frameOn = true;
-      Serial.println("frame on");
+      syslog.log(LOG_INFO,"frame on");
+      digitalWrite(12,HIGH);
     } 
     else if (strcmp(doc["frame"],off_cmd)==0) {
       frameOn = false;
-      Serial.println("frame off");
+      syslog.log(LOG_INFO,"frame off");
+      digitalWrite(12,LOW);
     }
+  }
+     if (doc.containsKey("powerOn")) {
+    if (strcmp(doc["powerOn"],on_cmd)==0) {
+      powerOn = true;
+      syslog.log(LOG_INFO,"powerOn");
+      digitalWrite(13,HIGH);
+    } 
+    else if (strcmp(doc["powerOn"],off_cmd)==0) {
+      powerOn = false;
+      syslog.log(LOG_INFO,"powerOn off");
+      digitalWrite(13,LOW);
+    }
+
+
+
 
   }
 
@@ -469,6 +500,7 @@ void sendState() {
   //JsonObject& root = doc.createObject();
   //TODO:  add powerOn state and ccs811 nested data
   doc["state"] = (stateOn) ? on_cmd : off_cmd;
+  doc["powerOn"] = (powerOn) ? on_cmd : off_cmd;
   doc["brightness"] = brightness;
   doc["effect"] = effectString.c_str();
   doc["frame"] = (frameOn) ? on_cmd :off_cmd;
@@ -481,6 +513,25 @@ void sendState() {
   bme["temp"] = bme280.readTemperature();
   bme["humi"] = bme280.readHumidity();
   bme["press"] =bme280.readPressure()/133.3;
+  JsonObject  ccs811 = doc.createNestedObject("ccs811");
+
+  if (ccs.available())  {
+
+    if (!ccs.readData()) {
+       JsonObject  ccs811 = doc.createNestedObject("ccs811");
+       ccs811["CO2"] = ccs.geteCO2();
+       ccs811["TVOC"] = ccs.getTVOC();
+
+    }
+  syslog.log(LOG_INFO,"Send state");  
+  }
+
+
+   
+
+
+
+  
 
  
 
@@ -498,18 +549,18 @@ void sendState() {
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
-    Serial.print("Attempting MQTT connection...");
+    syslog.log(LOG_INFO,"Attempting MQTT connection...");
     // Attempt to connect
     if (client.connect(SENSORNAME, mqtt_username, mqtt_password)) {
-      Serial.println("connected");
-      Serial.println(light_set_topic);
+      syslog.log(LOG_INFO,"connected");
+      syslog.log(LOG_INFO,light_set_topic);
       client.subscribe(light_set_topic);
       setColor(0, 0, 0);
       sendState();
     } else {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
+      syslog.log(LOG_ERR,"failed, rc=");
+      syslog.log(LOG_INFO, String(client.state()));
+      syslog.log(LOG_INFO," try again in 5 seconds");
       // Wait 5 seconds before retrying
       delay(5000);
     }
@@ -527,14 +578,14 @@ void setColor(int inR, int inG, int inB) {
   }
 
   FastLED.show();
-
-  Serial.println("Setting LEDs:");
-  Serial.print("r: ");
-  Serial.print(inR);
-  Serial.print(", g: ");
-  Serial.print(inG);
-  Serial.print(", b: ");
-  Serial.println(inB);
+  /*
+  syslog.log(LOG_INFO,"Setting LEDs:");
+  syslog.log(LOG_INFO,"r: ");
+  syslog.log(LOG_INFO,String(inR));
+  syslog.log(LOG_INFO,", g: ");
+  syslog.log(LOG_INFO,String(inG));
+  syslog.log(LOG_INFO,", b: ");
+  syslog.log(LOG_INFO,String(inB));  */
 }
 
 

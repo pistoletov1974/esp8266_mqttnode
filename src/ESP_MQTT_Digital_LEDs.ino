@@ -192,7 +192,9 @@ PubSubClient client(espClient);
 struct CRGB leds[NUM_LEDS];
 Adafruit_BME280 bme280; 
 Adafruit_CCS811 ccs;
-
+int rxPin =D1;
+int txPin =D2;
+SdsDustSensor sds(Serial);
 
 
 /********************************** START SETUP*****************************************/
@@ -245,7 +247,7 @@ void setup() {
   //Wire.pins(0, 2);
   //Wire.begin(0, 2);
   if (! bme280.begin(0x76)) {
-        syslog.log(LOG_INFO,"Could not find a valid BME280 sensor, check wiring!");
+        syslog.log(LOG_ERR,"Could not find a valid BME280 sensor, check wiring!");
        // while (1);
     }  else  { 
       syslog.log(LOG_INFO, "bme 280 found");
@@ -264,7 +266,9 @@ void setup() {
    
     }   else syslog.log(LOG_INFO,"CCS811 found");
  
-
+  //SDS SENSOR
+  syslog.log(LOG_INFO, sds.setQueryReportingMode().toString());
+  syslog.log(LOG_INFO, sds.queryFirmwareVersion().toString());
 }
 
 

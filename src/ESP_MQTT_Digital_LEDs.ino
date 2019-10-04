@@ -195,6 +195,8 @@ Adafruit_CCS811 ccs;
 int rxPin =D1;
 int txPin =D2;
 SdsDustSensor sds(Serial);
+int8_t  sds_sleep=-1;
+bool sds_enable=true;
 
 
 /********************************** START SETUP*****************************************/
@@ -267,6 +269,8 @@ void setup() {
     }   else syslog.log(LOG_INFO,"CCS811 found");
  
   //SDS SENSOR
+  sds.wakeup();
+  delay(100);
   syslog.log(LOG_INFO, sds.setQueryReportingMode().toString());
   syslog.log(LOG_INFO, sds.queryFirmwareVersion().toString());
 }
@@ -500,6 +504,7 @@ bool processJson(char* message) {
 void sendState() {
   StaticJsonDocument<BUFFER_SIZE> doc;
   char buffer2[400];
+  PmResult pm = sds.queryPm();
 
   //JsonObject& root = doc.createObject();
   //TODO:  add powerOn state and ccs811 nested data
@@ -524,21 +529,20 @@ void sendState() {
     if (!ccs.readData()) {
        JsonObject  ccs811 = doc.createNestedObject("ccs811");
        ccs811["CO2"] = ccs.geteCO2();
-       ccs811["TVOC"] = ccs.getTVOC();
-
+       ccs811["TVOC"] = ccs.getTVOC();    
     }
-  syslog.log(LOG_INFO,"Send state");  
+
   }
+   if ( ((sds_sleep==2)||(sds_sleep==1)) && (sds_enable)  ) {
+   JsonObject  sds =doc.createNestedObject("sds");
+    if (pm.isOk()) {
+      sds["pm25"]=pm.pm25;
+      sds["pm10"]=pm.pm10;
+    }
+   }
 
-
-   
-
-
-
+  syslog.log(LOG_INFO,"Send state");  
   
-
- 
-
 
   //char buffer[doc.measureLength() + 1];
   //doc.printTo(buffer, sizeof(buffer));
@@ -936,8 +940,23 @@ void loop() {
 
   EVERY_N_MINUTES(1) {
     sendState();
+
   }
 
+  EVERY_N_SECONDS(30){
+  
+  if (sds_sleep==-1) 
+     sds.wakeup();
+       if (sds_sleep>2) sds.sleep();
+  
+   if (sds_sleep>10) 
+      sds_sleep=-1;
+        else sds_sleep++;
+  syslog.log(LOG_INFO,String(sds_sleep));
+
+
+
+  }
 
 
   //FLASH AND FADE SUPPORT

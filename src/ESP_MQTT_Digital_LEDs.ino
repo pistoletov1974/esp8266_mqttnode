@@ -38,18 +38,40 @@
 
 
 
+
+//************ WIFI and MQTT Information (CHANGE THESE FOR YOUR SETUP) ******************/
+// const char* ssid = "linksys"; //type your WIFI information inside the quotes
+// const char* password = "tverdosplav";
+// const char* mqtt_server = "10.8.9.100";
+// const char* mqtt_username = "mosquitto";
+// const char* mqtt_password = "";
+// const int mqtt_port = 1883;
+ 
+
+//  /************FOR SYSLOG SETTINGS*******************************************************/
+// #define SYSLOG_SERVER "10.8.9.100"
+// #define SYSLOG_PORT 514
+
+
+
+//HOME
 /************ WIFI and MQTT Information (CHANGE THESE FOR YOUR SETUP) ******************/
-const char* ssid = "linksys"; //type your WIFI information inside the quotes
-const char* password = "tverdosplav";
-const char* mqtt_server = "10.8.9.100";
+const char* ssid = "pptik"; //type your WIFI information inside the quotes
+const char* password = "cntcntcnt";
+const char* mqtt_server = "192.168.0.77";
 const char* mqtt_username = "mosquitto";
 const char* mqtt_password = "";
 const int mqtt_port = 1883;
 
-
 /************FOR SYSLOG SETTINGS*******************************************************/
-#define SYSLOG_SERVER "10.8.9.100"
+#define SYSLOG_SERVER "192.168.0.100"
 #define SYSLOG_PORT 514
+
+
+
+
+
+
 
 
 
@@ -100,6 +122,8 @@ byte brightness = 255;
 bool stateOn = false;
 bool frameOn = false;
 bool powerOn =false;
+bool DC_5V_1 = false;
+bool DC_5V_2=false;
 bool startFade = false;
 bool onbeforeflash = false;
 unsigned long lastLoop = 0;
@@ -205,6 +229,8 @@ void setup() {
   FastLED.addLeds<CHIPSET, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS);
   pinMode(12,OUTPUT);
   pinMode(13,OUTPUT);
+  pinMode(14,OUTPUT);
+  pinMode(16,OUTPUT);
 
   setupStripedPalette( CRGB::Red, CRGB::Red, CRGB::White, CRGB::White); //for CANDY CANE
   gPal = HeatColors_p; //for FIRE
@@ -404,11 +430,52 @@ bool processJson(char* message) {
       syslog.log(LOG_INFO,"powerOn off");
       digitalWrite(13,LOW);
     }
+     }
+   // gpio 5v_1 and 5v_2 gpio 14 & 16
+
+        if (doc.containsKey("DC5V1On")) {
+    if (strcmp(doc["DC5V1On"],on_cmd)==0) {
+      DC_5V_1 = true;
+      syslog.log(LOG_INFO,"DC5V1On");
+      digitalWrite(14,HIGH);
+    } 
+    else if (strcmp(doc["DC5V1On"],off_cmd)==0) {
+      DC_5V_1 = false;
+      syslog.log(LOG_INFO,"DC5V1On");
+      digitalWrite(14,LOW);
+    }
+        }
+
+
+
+            if (doc.containsKey("DC5V2On")) {
+    if (strcmp(doc["DC5V2On"],on_cmd)==0) {
+      DC_5V_2 = true;
+      syslog.log(LOG_INFO,"DC5V2On");
+      digitalWrite(16,HIGH);
+    } 
+    else if (strcmp(doc["DC5V2On"],off_cmd)==0) {
+      DC_5V_2 = false;
+      syslog.log(LOG_INFO,"DC5V2On");
+      digitalWrite(16,LOW);
+    }
+        }
 
 
 
 
-  }
+
+
+
+
+
+
+
+
+
+
+
+  
 
   // If "flash" is included, treat RGB and brightness differently
   if (doc.containsKey("flash")) {
@@ -508,8 +575,10 @@ void sendState() {
 
   //JsonObject& root = doc.createObject();
   //TODO:  add powerOn state and ccs811 nested data
-  doc["state"] = (stateOn) ? on_cmd : off_cmd;
-  doc["powerOn"] = (powerOn) ? on_cmd : off_cmd;
+  doc["state"] =    (stateOn) ? on_cmd : off_cmd;
+  doc["powerOn"] =  (powerOn) ? on_cmd : off_cmd;
+  doc["DC5V1On"] =  (DC_5V_1) ? on_cmd : off_cmd;
+  doc["DC5V2On"] =  (DC_5V_2) ? on_cmd : off_cmd;
   doc["brightness"] = brightness;
   doc["effect"] = effectString.c_str();
   doc["frame"] = (frameOn) ? on_cmd :off_cmd;
@@ -536,8 +605,10 @@ void sendState() {
    if ( ((sds_sleep==2)||(sds_sleep==1)) && (sds_enable)  ) {
    JsonObject  sds =doc.createNestedObject("sds");
     if (pm.isOk()) {
+
       sds["pm25"]=pm.pm25;
       sds["pm10"]=pm.pm10;
+
     }
    }
 
@@ -947,7 +1018,7 @@ void loop() {
   
   if (sds_sleep==-1) 
      sds.wakeup();
-       if (sds_sleep>2) sds.sleep();
+       if (sds_sleep>3) sds.sleep();
   
    if (sds_sleep>10) 
       sds_sleep=-1;

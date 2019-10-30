@@ -95,7 +95,7 @@ String oldeffectString = "solid";
 
 
 /****************************************FOR JSON***************************************/
-const int BUFFER_SIZE = JSON_OBJECT_SIZE(20);
+const int BUFFER_SIZE = JSON_OBJECT_SIZE(30);
 #define MQTT_MAX_PACKET_SIZE 512
 
 
@@ -570,7 +570,7 @@ bool processJson(char* message) {
 /********************************** START SEND STATE*****************************************/
 void sendState() {
   StaticJsonDocument<BUFFER_SIZE> doc;
-  char buffer2[400];
+  char buffer2[500];
   PmResult pm = sds.queryPm();
 
   //JsonObject& root = doc.createObject();

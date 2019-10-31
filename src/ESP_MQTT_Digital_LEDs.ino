@@ -95,8 +95,8 @@ String oldeffectString = "solid";
 
 
 /****************************************FOR JSON***************************************/
-const int BUFFER_SIZE = JSON_OBJECT_SIZE(30);
-#define MQTT_MAX_PACKET_SIZE 512
+const int BUFFER_SIZE = JSON_OBJECT_SIZE(40);
+#define MQTT_MAX_PACKET_SIZE 600
 
 
 
@@ -123,7 +123,8 @@ bool stateOn = false;
 bool frameOn = false;
 bool powerOn =false;
 bool DC_5V_1 = false;
-bool DC_5V_2=false;
+bool DC_5V_2 = false;
+bool isNight = false;
 bool startFade = false;
 bool onbeforeflash = false;
 unsigned long lastLoop = 0;
@@ -461,6 +462,12 @@ bool processJson(char* message) {
     }
         }
 
+      if (doc.containsKey("night")) {
+        if (strcmp(doc["night"],on_cmd) == 0) 
+          isNight=true;
+           else isNight=false;
+      }  
+
 
 
 
@@ -570,15 +577,16 @@ bool processJson(char* message) {
 /********************************** START SEND STATE*****************************************/
 void sendState() {
   StaticJsonDocument<BUFFER_SIZE> doc;
-  char buffer2[500];
+  char buffer2[600];
   PmResult pm = sds.queryPm();
 
-  //JsonObject& root = doc.createObject();
+  //JsonObject& root = doc.createObject(); 
   //TODO:  add powerOn state and ccs811 nested data
   doc["state"] =    (stateOn) ? on_cmd : off_cmd;
   doc["powerOn"] =  (powerOn) ? on_cmd : off_cmd;
   doc["DC5V1On"] =  (DC_5V_1) ? on_cmd : off_cmd;
   doc["DC5V2On"] =  (DC_5V_2) ? on_cmd : off_cmd;
+  doc["night"]   =  (isNight) ? on_cmd : off_cmd;
   doc["brightness"] = brightness;
   doc["effect"] = effectString.c_str();
   doc["frame"] = (frameOn) ? on_cmd :off_cmd;
@@ -602,7 +610,7 @@ void sendState() {
     }
 
   }
-   if ( ((sds_sleep==2)||(sds_sleep==1)) && (sds_enable)  ) {
+   if ( ((sds_sleep==1)||(sds_sleep==2)) && (!isNight)  ) {
    JsonObject  sds =doc.createNestedObject("sds");
     if (pm.isOk()) {
 

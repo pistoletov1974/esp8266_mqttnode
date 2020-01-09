@@ -559,7 +559,7 @@ bool processJson(char* message) {
       effectString = effect;
       twinklecounter = 0; //manage twinklecounter
     }
-
+ 
     if (doc.containsKey("transition")) {
       transitionTime = doc["transition"];
     }
